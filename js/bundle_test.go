@@ -850,7 +850,7 @@ func TestBundleNotSharable(t *testing.T) {
 		b := b
 		t.Run(name, func(t *testing.T) {
 			for i := 0; i < vus; i++ {
-				bi, err := b.Instantiate(logger, int64(i))
+				bi, err := b.Instantiate(logger, uint64(i))
 				require.NoError(t, err)
 				for j := 0; j < iters; j++ {
 					bi.Runtime.Set("__ITER", j)

@@ -2024,7 +2024,7 @@ func TestExecutionStats(t *testing.T) {
 		{"vu_err", `
 		var exec = require('k6/execution');
 		exec.getVUStats();
-		`, "VU information can only be returned from an exported function"},
+		`, "getting VU information in the init context is not supported"},
 		{"scenario_ok", `
 		var exec = require('k6/execution');
 		var sleep = require('k6').sleep;
@@ -2042,7 +2042,7 @@ func TestExecutionStats(t *testing.T) {
 		{"scenario_err", `
 		var exec = require('k6/execution');
 		exec.getScenarioStats();
-		`, "scenario information can only be returned from an exported function"},
+		`, "getting scenario information in the init context is not supported"},
 		{"test_ok", `
 		var exec = require('k6/execution');
 
@@ -2056,7 +2056,7 @@ func TestExecutionStats(t *testing.T) {
 		{"test_err", `
 		var exec = require('k6/execution');
 		exec.getTestStats();
-		`, "test information can only be returned from an exported function"},
+		`, "getting test information in the init context is not supported"},
 	}
 
 	for _, tc := range testCases {

@@ -25,6 +25,7 @@ import (
 	"crypto/x509"
 	"errors"
 	"fmt"
+	"io/ioutil"
 	"net"
 	"net/http"
 	"net/url"
@@ -39,6 +40,7 @@ import (
 	"golang.org/x/net/http2"
 
 	"go.k6.io/k6/lib/netext"
+	"go.k6.io/k6/lib/testutils/httpmultibin"
 )
 
 func TestDefaultError(t *testing.T) {
@@ -51,13 +53,13 @@ func TestHTTP2Errors(t *testing.T) {
 	unknownErrorCode := 220
 	connectionError := http2.ConnectionError(unknownErrorCode)
 	testTable := map[errCode]error{
-		unknownHTTP2ConnectionErrorCode + 1: new(http2.ConnectionError),
-		unknownHTTP2StreamErrorCode + 1:     new(http2.StreamError),
-		unknownHTTP2GoAwayErrorCode + 1:     new(http2.GoAwayError),
+		unknownHTTP2ConnectionErrorCode + 1: http2.ConnectionError(0),
+		unknownHTTP2StreamErrorCode + 1:     http2.StreamError{},
+		unknownHTTP2GoAwayErrorCode + 1:     http2.GoAwayError{},
 
-		unknownHTTP2ConnectionErrorCode: &connectionError,
-		unknownHTTP2StreamErrorCode:     &http2.StreamError{Code: 220},
-		unknownHTTP2GoAwayErrorCode:     &http2.GoAwayError{ErrCode: 220},
+		unknownHTTP2ConnectionErrorCode: connectionError,
+		unknownHTTP2StreamErrorCode:     http2.StreamError{Code: 220},
+		unknownHTTP2GoAwayErrorCode:     http2.GoAwayError{ErrCode: 220},
 	}
 	testMapOfErrorCodes(t, testTable)
 }
@@ -217,4 +219,33 @@ func TestDnsResolve(t *testing.T) {
 
 	assert.Equal(t, dnsNoSuchHostErrorCode, code)
 	assert.Equal(t, dnsNoSuchHostErrorCodeMsg, msg)
+}
+
+func TestHTTP2StreamError(t *testing.T) {
+	t.Parallel()
+	tb := httpmultibin.NewHTTPMultiBin(t)
+
+	tb.Mux.HandleFunc("/tsr", func(rw http.ResponseWriter, req *http.Request) {
+		rw.Header().Set("Content-Length", "100000")
+		rw.WriteHeader(200)
+
+		rw.(http.Flusher).Flush()
+		time.Sleep(time.Millisecond * 2)
+		panic("expected internal error")
+	})
+	client := http.Client{
+		Timeout:   time.Second * 3,
+		Transport: tb.HTTPTransport,
+	}
+
+	res, err := client.Get(tb.Replacer.Replace("HTTP2BIN_URL/tsr")) //nolint:noctx
+	require.NotNil(t, res)
+	require.NoError(t, err)
+	_, err = ioutil.ReadAll(res.Body)
+	_ = res.Body.Close()
+	require.Error(t, err)
+
+	code, msg := errorCodeForError(err)
+	assert.Equal(t, unknownHTTP2StreamErrorCode+errCode(http2.ErrCodeInternal)+1, code)
+	assert.Contains(t, msg, fmt.Sprintf(http2StreamErrorCodeMsg, http2.ErrCodeInternal))
 }
